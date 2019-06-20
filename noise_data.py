@@ -1,12 +1,16 @@
 import numpy as np
 import re
+import random
 import shutil
 
 from fairseq.tokenizer import tokenize_line
+from tqdm import tqdm
+
+import collections
 
 class NoiseInjector(object):
 
-    def __init__(self, corpus, shuffle_sigma=0.5,
+    def __init__(self, corpus, morph_dict, shuffle_sigma=0.5,
                  replace_mean=0.1, replace_std=0.03,
                  delete_mean=0.1, delete_std=0.03,
                  add_mean=0.1, add_std=0.03):
@@ -16,6 +20,33 @@ class NoiseInjector(object):
         self.replace_a, self.replace_b = self._solve_ab_given_mean_var(replace_mean, replace_std**2)
         self.delete_a, self.delete_b = self._solve_ab_given_mean_var(delete_mean, delete_std**2)
         self.add_a, self.add_b = self._solve_ab_given_mean_var(add_mean, add_std**2)
+        
+        # for morph dict
+        # TODO: ここの confusion set を作る処理、キモすぎ
+        if morph_dict == '':
+            self.morph_dict = None
+            self.confusion_set = None
+        else:
+            confusions = list()
+            self.confusion_set = collections.defaultdict(list)
+            with open(morph_dict) as morph:
+                for line in morph:
+                    line = line.strip()
+                    if line == '':
+                        for key in confusions:
+                            for value in confusions:
+                                if key != value:
+                                    confusion_set[key].append(value)
+                        confusions = list()
+                        continue
+
+                    words = line.split('\t')
+                    if len(words) == 1:
+                        idx_word = int(line)
+                    else:
+                        word = words[0]
+                        confusions.append(word)
+
 
     @staticmethod
     def _solve_ab_given_mean_var(mean, var):
@@ -34,14 +65,30 @@ class NoiseInjector(object):
         return res
 
     def _replace_func(self, tgt):
+        """
+        tgt: 一文 (list)
+        rnd: 単語に対して確率付与
+        confusion set に存在しなかったら replace しない方針
+        -> replace による単語誤りは全て morph 変化由来
+        TODO: if の分岐おかしくない？
+        """
         replace_ratio = np.random.beta(self.replace_a, self.replace_b)
         ret = []
         rnd = np.random.random(len(tgt))
         for i, p in enumerate(tgt):
             if rnd[i] < replace_ratio: 
-                rnd_ex = self.corpus[np.random.randint(len(self.corpus))]
-                rnd_word = rnd_ex[np.random.randint(len(rnd_ex))]
-                ret.append((-1, rnd_word))
+                if self.morph_dict is not None:
+                    if p in self.confusion_set:
+                        rnd_morph_word = random.choice(self.confusion_set[p])
+                        ret.append((-1, rnd_morph_word))
+                    else:
+                        ret.append(p)
+                else:
+                    # rand_ex: corpus 内の任意の文 
+                    # rand_word: ex 内の任意の単語
+                    rnd_ex = self.corpus[np.random.randint(len(self.corpus))]
+                    rnd_word = rnd_ex[np.random.randint(len(rnd_ex))]
+                    ret.append((-1, rnd_word))
             else:
                 ret.append(p)
         return ret
@@ -100,14 +147,15 @@ def save_file(filename, contents):
             ofile.write(' '.join(content) + '\n')
 
 # make noise from filename
-def noise(filename, ofile_suffix):
+def noise(filename, ofile_suffix, morph_dict=None):
     lines = open(filename).readlines()
     tgts = [tokenize_line(line.strip()) for line in lines]
-    noise_injector = NoiseInjector(tgts)
+    noise_injector = NoiseInjector(tgts, morph_dict)
     
     srcs = []
     aligns = []
-    for tgt in tgts:
+    for tgt in tqdm(tgts):
+        # tgt は1文単位
         src, align = noise_injector.inject_noise(tgt)
         srcs.append(src)
         aligns.append(align)
@@ -121,14 +169,18 @@ import argparse
 parser=argparse.ArgumentParser()
 parser.add_argument('-e', '--epoch', type=int, default=10)
 parser.add_argument('-s', '--seed', type=int, default=2468)
+parser.add_argument('-d', '--data', type=str, default='./data/train_1b.tgt')
+parser.add_argument('--morph_dict', type=str, default='', 
+                    help='if exist morph dict, use it in replaced noise.')
 
 args = parser.parse_args()
 np.random.seed(args.seed)
+random.seed(args.seed)
 if __name__ == '__main__':
     print("epoch={}, seed={}".format(args.epoch, args.seed))
 
-    filename = './data/train_1b.tgt'
+    filename = args.data
     ofile_suffix = './data_art/train_1b_{}'.format(args.epoch)
 
-    noise(filename, ofile_suffix)
+    noise(filename, ofile_suffix, args.morph_dict)
 
