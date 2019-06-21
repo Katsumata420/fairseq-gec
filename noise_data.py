@@ -10,7 +10,8 @@ import collections
 
 class NoiseInjector(object):
 
-    def __init__(self, corpus, morph_dict, shuffle_sigma=0.5,
+    def __init__(self, corpus, morph_dict, is_morph_with=False, 
+                 prob_rep_morph=False, shuffle_sigma=0.5,
                  replace_mean=0.1, replace_std=0.03,
                  delete_mean=0.1, delete_std=0.03,
                  add_mean=0.1, add_std=0.03):
@@ -22,11 +23,14 @@ class NoiseInjector(object):
         self.add_a, self.add_b = self._solve_ab_given_mean_var(add_mean, add_std**2)
         
         # for morph dict
+        self.is_morph_with = is_morph_with
+        self.prob_rep_morph = prob_rep_morph
         # TODO: ここの confusion set を作る処理、キモすぎ
         if morph_dict == '':
             self.morph_dict = None
             self.confusion_set = None
         else:
+            self.morph_dict = morph_dict
             confusions = list()
             self.confusion_set = collections.defaultdict(list)
             with open(morph_dict) as morph:
@@ -36,7 +40,7 @@ class NoiseInjector(object):
                         for key in confusions:
                             for value in confusions:
                                 if key != value:
-                                    confusion_set[key].append(value)
+                                    self.confusion_set[key].append(value)
                         confusions = list()
                         continue
 
@@ -71,13 +75,15 @@ class NoiseInjector(object):
         confusion set に存在しなかったら replace しない方針
         -> replace による単語誤りは全て morph 変化由来
         TODO: if の分岐おかしくない？
+        
+        is_morph_with で replace と一緒に morph 置換するのか決定
         """
         replace_ratio = np.random.beta(self.replace_a, self.replace_b)
         ret = []
         rnd = np.random.random(len(tgt))
         for i, p in enumerate(tgt):
             if rnd[i] < replace_ratio: 
-                if self.morph_dict is not None:
+                if self.is_morph_with and self.morph_dict is not None:
                     if p in self.confusion_set:
                         rnd_morph_word = random.choice(self.confusion_set[p])
                         ret.append((-1, rnd_morph_word))
@@ -92,6 +98,29 @@ class NoiseInjector(object):
             else:
                 ret.append(p)
         return ret
+
+    def _replace_morph_func(self, tgt):
+        """
+        _replace_func との diff
+        - 辞書に入っていたら全て置換する点
+        - 確率的な処理に置換するのではなく、該当エントリがあれば置換
+        """
+        ret = []
+        replace_ratio = np.random.beta(self.replace_a, self.replace_b)
+        if self.prob_rep_morph:
+            replace_ratio = 1.00
+        rnd = np.random.random(len(tgt))
+        for i, p in enumerate(tgt):
+            if rnd[i] < replace_ratio:
+                if p in self.confusion_set:
+                    rnd_morph_word = random.choice(self.confusion_set[p])
+                    red.append((-1, rnd_morph_word))
+                else:
+                    ret.append(p)
+            else:
+                ret.append(p)
+        return ret
+
 
     def _delete_func(self, tgt):
         delete_ratio = np.random.beta(self.delete_a, self.delete_b)
@@ -131,6 +160,8 @@ class NoiseInjector(object):
         # tgt is a vector of integers
 
         funcs = [self._add_func, self._shuffle_func, self._replace_func, self._delete_func]
+        if not self.is_morph_with:
+            funcs.append(self._replace_morph_func)
         np.random.shuffle(funcs)
         
         pairs = [(i, w) for (i, w) in enumerate(tokens)]
@@ -148,9 +179,14 @@ def save_file(filename, contents):
 
 # make noise from filename
 def noise(filename, ofile_suffix, morph_dict=None):
+    is_morph_with_replace = False # ここ True の場合は確率置換に入ってくる 
+    prob_rep_morph = False
+
     lines = open(filename).readlines()
     tgts = [tokenize_line(line.strip()) for line in lines]
-    noise_injector = NoiseInjector(tgts, morph_dict)
+    noise_injector = NoiseInjector(tgts, morph_dict, 
+                                   is_morph_with=is_morph_with_replace,
+                                   prob_rep_morph=prob_rep_morph)
     
     srcs = []
     aligns = []

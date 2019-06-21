@@ -16,6 +16,7 @@ common_params='--source-lang src --target-lang trg
 
 for epoch in {1..1}; do
     echo $epoch
+    epoch=1000
 
     trainpref=$DATA/train_1b_$epoch
     validpref=$DATA/valid
