@@ -9,17 +9,16 @@ copy_params='--copy-ext-dict'
 
 # set common params between train/test
 common_params='--source-lang src --target-lang trg  
---padding-factor 1 
---srcdict ./dicts/dict.src.txt 
---joined-dictionary 
+ --padding-factor 1 
+ --srcdict ./bpe_noise11110/vocab.txt 
+ --joined-dictionary 
 '
 
-for epoch in {1..1}; do
+for e in {1..1}; do
     echo $epoch
-    epoch=1000
 
     trainpref=$DATA/train_1b_$epoch
-    validpref=$DATA/valid
+    validpref=$DATA/valid_$epoch
 
     # preprocess train/valid
     python preprocess.py \

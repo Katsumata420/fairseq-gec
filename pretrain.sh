@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 source ./config.sh
 
-data_epoch=1 
-CUDA_VISIBLE_DEVICES=0,1 nohup python train.py ${DATA_BIN}_${data_epoch} \
+data_epoch=3
+CUDA_VISIBLE_DEVICES=$device python train.py ${DATA_BIN}_art_${epoch} \
 --save-dir $MODELS \
 --max-epoch $data_epoch \
---batch-size 64 \
---max-tokens 3000 \
+--batch-size 128 \
+--max-tokens 6000 \
 --train-subset train \
 --valid-subset valid \
 --arch transformer \
@@ -24,6 +24,7 @@ CUDA_VISIBLE_DEVICES=0,1 nohup python train.py ${DATA_BIN}_${data_epoch} \
 --no-ema \
 --save-interval-updates 100000 \
 --skip-invalid-size-inputs-valid-test \
---copy-attention --copy-attention-heads 1 > $OUT/log$exp${data_epoch}.out 2>&1 &
+--copy-attention --copy-attention-heads  1 
+# > $OUT/log$exp${data_epoch}.out 2>&1 &
 
-tail -f $OUT/log$exp${data_epoch}.out
+# tail -f $OUT/log$exp${data_epoch}.out

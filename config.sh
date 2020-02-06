@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 
+epoch=$1
 device=0
-if [ $# -ge 1 ]; then
-    device=$1
+if [ $# -ge 2 ]; then
+    device=$2
 fi
 
 exp=''
-if [ $# -ge 2 ]; then
-    exp=$2
+if [ $# -ge 3 ]; then
+    exp=$3
 fi
 
 DATA='data' # input dir

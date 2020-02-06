@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 source ./config.sh
 
-pretrained_model=./out/models_pretrain/checkpoint9.pt
+pretrained_model=./out/models_en_ppdb_l_bpe_pretrain3/checkpoint3.pt
+# pretrained_model=/clwork/katsumata/temp/morph_GEC/pretrained_model/ppdb/size_xxxl/checkpoint3.pt
 
-CUDA_VISIBLE_DEVICES=$device nohup python train.py $DATA_BIN \
+CUDA_VISIBLE_DEVICES=$device python train.py ${DATA_BIN}_ori_11110 \
 --save-dir $MODELS \
 --seed 4321 \
---max-epoch 9 \
+--max-epoch 15 \
 --batch-size 64 \
 --max-tokens 3000 \
 --train-subset train \
@@ -25,6 +26,7 @@ CUDA_VISIBLE_DEVICES=$device nohup python train.py $DATA_BIN \
 --log-interval 1000 \
 --positive-label-weight 1.2 \
 --pretrained-model $pretrained_model \
---copy-attention --copy-attention-heads 1 > $OUT/log$exp.out 2>&1 &
+--copy-attention --copy-attention-heads 1 
+# > $OUT/log$exp.out 2>&1 &
 
-tail -f $OUT/log$exp.out
+# tail -f $OUT/log$exp.out
